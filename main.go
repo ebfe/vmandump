@@ -173,18 +173,19 @@ func main() {
 	flag.Parse()
 
 	if len(flag.Args()) < 1 {
-		fmt.Fprintf(os.Stderr, "usage: vmandump [-o outdir] /repo/$ARCH-repodata\n")
+		fmt.Fprintf(os.Stderr, "usage: vmandump [-o outdir] /repo/$ARCH-repodata...\n")
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
 
 	statefile := filepath.Join(outdir, statefilename)
-	state, err := readState(statefile)
+	current, err := readState(statefile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "vmandump: read state: %q: %s\n", statefile, err)
 		os.Exit(1)
 	}
 
+	next := state{}
 	for _, index := range flag.Args() {
 		findex, err := os.Open(index)
 		if err != nil {
@@ -200,7 +201,8 @@ func main() {
 
 		base := filepath.Dir(index)
 		for _, info := range rindex {
-			if _, ok := state[info.Sha256]; ok {
+			if v, ok := current[info.Sha256]; ok {
+				next[info.Sha256] = v
 				continue
 			}
 			files, err := process(base, &info)
@@ -208,11 +210,11 @@ func main() {
 				fmt.Fprintf(os.Stderr, "vmandump: %s\n", err)
 				continue
 			}
-			state[info.Sha256] = files
+			next[info.Sha256] = files
 		}
 	}
 
-	if err := writeState(statefile, state); err != nil {
+	if err := writeState(statefile, next); err != nil {
 		fmt.Fprintf(os.Stderr, "vmandump: write state: %q: %s\n", statefile, err)
 		os.Exit(1)
 	}
